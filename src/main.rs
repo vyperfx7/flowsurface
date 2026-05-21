@@ -961,13 +961,13 @@ impl Flowsurface {
                 (true, false, false, Key::Character(c)) if matches!(c.as_str(), "w" | "W") =>
                     Some(Message::KeyClosePane),
 
-                (false, true, false, Key::Named(Named::ArrowRight)) =>
+                (false, false, true, Key::Named(Named::ArrowRight)) =>
                     Some(Message::KeyMovePane(pane_grid::Direction::Right)),
-                (false, true, false, Key::Named(Named::ArrowLeft)) =>
+                (false, false, true, Key::Named(Named::ArrowLeft)) =>
                     Some(Message::KeyMovePane(pane_grid::Direction::Left)),
-                (false, true, false, Key::Named(Named::ArrowUp)) =>
+                (false, false, true, Key::Named(Named::ArrowUp)) =>
                     Some(Message::KeyMovePane(pane_grid::Direction::Up)),
-                (false, true, false, Key::Named(Named::ArrowDown)) =>
+                (false, false, true, Key::Named(Named::ArrowDown)) =>
                     Some(Message::KeyMovePane(pane_grid::Direction::Down)),
 
                 _ => None,
