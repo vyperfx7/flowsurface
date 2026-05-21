@@ -18,6 +18,22 @@ pub const AZERET_MONO: Font = Font {
     style: iced::font::Style::Normal,
 };
 
+pub const ORBITRON_BYTES: &[u8] = include_bytes!("../assets/fonts/Orbitron-Bold.ttf");
+pub const ORBITRON: Font = Font {
+    family: Family::Name("Orbitron"),
+    weight: Weight::Bold,
+    stretch: Stretch::Normal,
+    style: iced::font::Style::Normal,
+};
+
+pub const RAJDHANI_BYTES: &[u8] = include_bytes!("../assets/fonts/Rajdhani-SemiBold.ttf");
+pub const RAJDHANI: Font = Font {
+    family: Family::Name("Rajdhani"),
+    weight: Weight::Semibold,
+    stretch: Stretch::Normal,
+    style: iced::font::Style::Normal,
+};
+
 pub const TITLE_PADDING_TOP: f32 = if cfg!(target_os = "macos") { 20.0 } else { 0.0 };
 
 pub mod text_size {

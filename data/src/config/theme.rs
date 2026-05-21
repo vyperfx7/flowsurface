@@ -38,12 +38,12 @@ pub fn default_theme() -> Custom {
     Custom::new(
         "Flowsurface".to_string(),
         Palette {
-            background: Color::from_rgb8(24, 22, 22),
-            text: Color::from_rgb8(197, 201, 197),
-            primary: Color::from_rgb8(200, 200, 200),
-            success: Color::from_rgb8(81, 205, 160),
-            danger: Color::from_rgb8(192, 80, 77),
-            warning: Color::from_rgb8(238, 216, 139),
+            background: Color::from_rgb8(10, 10, 15),
+            text: Color::from_rgb8(224, 224, 224),
+            primary: Color::from_rgb8(0, 255, 255),
+            success: Color::from_rgb8(57, 255, 20),
+            danger: Color::from_rgb8(255, 0, 60),
+            warning: Color::from_rgb8(255, 255, 0),
         },
     )
 }

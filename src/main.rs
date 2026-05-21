@@ -54,6 +54,8 @@ fn main() {
             fonts: vec![
                 Cow::Borrowed(style::AZERET_MONO_BYTES),
                 Cow::Borrowed(style::ICONS_BYTES),
+                Cow::Borrowed(style::ORBITRON_BYTES),
+                Cow::Borrowed(style::RAJDHANI_BYTES),
             ],
             default_text_size: style::text_size::BODY.into(),
             ..Default::default()
