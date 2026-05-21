@@ -476,7 +476,8 @@ impl Flowsurface {
                 let current = self.layout_manager.active_layout_id().map(|l| l.unique);
                 let idx = self.layout_manager.layouts.iter().position(|l| Some(l.id.unique) == current).unwrap_or(0);
                 let next = self.layout_manager.layouts[(idx + 1) % n].id.unique;
-                return self.update(Message::Layouts(modal::layout_manager::Message::SelectActive(next)));
+                let main_window = self.main_window.id;
+                return self.load_layout(next, main_window);
             }
             Message::KeyLayoutPrev => {
                 let n = self.layout_manager.layouts.len();
@@ -484,7 +485,8 @@ impl Flowsurface {
                 let current = self.layout_manager.active_layout_id().map(|l| l.unique);
                 let idx = self.layout_manager.layouts.iter().position(|l| Some(l.id.unique) == current).unwrap_or(0);
                 let prev = self.layout_manager.layouts[(idx + n - 1) % n].id.unique;
-                return self.update(Message::Layouts(modal::layout_manager::Message::SelectActive(prev)));
+                let main_window = self.main_window.id;
+                return self.load_layout(prev, main_window);
             }
             Message::ThemeSelected(theme) => {
                 self.theme = data::Theme(theme.clone());
@@ -937,15 +939,23 @@ impl Flowsurface {
         let tick = iced::window::frames().map(Message::Tick);
 
         let hotkeys = keyboard::listen().filter_map(|event| {
-            let keyboard::Event::KeyPressed { key, modifiers, .. } = event else {
+            let keyboard::Event::KeyPressed { key, modifiers, physical_key, .. } = event else {
                 return None;
             };
             use keyboard::Key;
-            use keyboard::key::Named;
+            use keyboard::key::{Named, Code, Physical};
 
             let ctrl = modifiers.control();
             let shift = modifiers.shift();
             let alt = modifiers.alt();
+
+            if ctrl && shift && !alt {
+                match physical_key {
+                    Physical::Code(Code::KeyL) => return Some(Message::KeyLayoutNext),
+                    Physical::Code(Code::KeyH) => return Some(Message::KeyLayoutPrev),
+                    _ => {}
+                }
+            }
 
             match (ctrl, shift, alt, &key) {
                 (false, false, false, Key::Named(Named::Escape)) => Some(Message::GoBack),
@@ -987,11 +997,6 @@ impl Flowsurface {
                     Some(Message::KeyMovePane(pane_grid::Direction::Up)),
                 (false, false, true, Key::Named(Named::ArrowDown)) =>
                     Some(Message::KeyMovePane(pane_grid::Direction::Down)),
-
-                (true, true, false, Key::Character(c)) if matches!(c.as_str(), "l" | "L") =>
-                    Some(Message::KeyLayoutNext),
-                (true, true, false, Key::Character(c)) if matches!(c.as_str(), "h" | "H") =>
-                    Some(Message::KeyLayoutPrev),
 
                 _ => None,
             }
