@@ -116,6 +116,14 @@ enum Message {
     NetworkManager(modal::network_manager::Message),
     Layouts(modal::layout_manager::Message),
     AudioStream(modal::audio::Message),
+    KeyFocusDirection(pane_grid::Direction),
+    KeyFocusNext,
+    KeyFocusPrev,
+    KeyFocusByIndex(usize),
+    KeySplitPane(pane_grid::Axis),
+    KeyClosePane,
+    KeyToggleMaximize,
+    KeyMovePane(pane_grid::Direction),
 }
 
 impl Flowsurface {
@@ -317,6 +325,147 @@ impl Flowsurface {
                     } else {
                         self.sidebar.hide_tickers_table();
                     }
+                }
+            }
+            Message::KeyFocusDirection(direction) => {
+                let main_window_id = self.main_window.id;
+                let next = {
+                    let d = self.active_dashboard();
+                    d.focus.and_then(|(_, pane)| d.panes.adjacent(pane, direction))
+                };
+                if let Some(next_pane) = next {
+                    return self.update(Message::Dashboard {
+                        layout_id: None,
+                        event: dashboard::Message::Pane(
+                            main_window_id,
+                            dashboard::pane::Message::PaneClicked(next_pane),
+                        ),
+                    });
+                }
+            }
+            Message::KeyFocusNext => {
+                let main_window_id = self.main_window.id;
+                let next = {
+                    let d = self.active_dashboard();
+                    let panes: Vec<_> = d.panes.iter().map(|(p, _)| *p).collect();
+                    if panes.is_empty() {
+                        None
+                    } else {
+                        let idx = d.focus
+                            .and_then(|(_, f)| panes.iter().position(|p| *p == f))
+                            .unwrap_or(0);
+                        Some(panes[(idx + 1) % panes.len()])
+                    }
+                };
+                if let Some(pane) = next {
+                    return self.update(Message::Dashboard {
+                        layout_id: None,
+                        event: dashboard::Message::Pane(
+                            main_window_id,
+                            dashboard::pane::Message::PaneClicked(pane),
+                        ),
+                    });
+                }
+            }
+            Message::KeyFocusPrev => {
+                let main_window_id = self.main_window.id;
+                let prev = {
+                    let d = self.active_dashboard();
+                    let panes: Vec<_> = d.panes.iter().map(|(p, _)| *p).collect();
+                    if panes.is_empty() {
+                        None
+                    } else {
+                        let n = panes.len();
+                        let idx = d.focus
+                            .and_then(|(_, f)| panes.iter().position(|p| *p == f))
+                            .unwrap_or(0);
+                        Some(panes[(idx + n - 1) % n])
+                    }
+                };
+                if let Some(pane) = prev {
+                    return self.update(Message::Dashboard {
+                        layout_id: None,
+                        event: dashboard::Message::Pane(
+                            main_window_id,
+                            dashboard::pane::Message::PaneClicked(pane),
+                        ),
+                    });
+                }
+            }
+            Message::KeyFocusByIndex(idx) => {
+                let main_window_id = self.main_window.id;
+                let target = {
+                    let d = self.active_dashboard();
+                    d.panes.iter().map(|(p, _)| *p).nth(idx)
+                };
+                if let Some(pane) = target {
+                    return self.update(Message::Dashboard {
+                        layout_id: None,
+                        event: dashboard::Message::Pane(
+                            main_window_id,
+                            dashboard::pane::Message::PaneClicked(pane),
+                        ),
+                    });
+                }
+            }
+            Message::KeySplitPane(axis) => {
+                let main_window_id = self.main_window.id;
+                let focused = {
+                    let d = self.active_dashboard();
+                    d.focus.map(|(_, pane)| pane)
+                };
+                if let Some(pane) = focused {
+                    return self.update(Message::Dashboard {
+                        layout_id: None,
+                        event: dashboard::Message::Pane(
+                            main_window_id,
+                            dashboard::pane::Message::SplitPane(axis, pane),
+                        ),
+                    });
+                }
+            }
+            Message::KeyClosePane => {
+                let main_window_id = self.main_window.id;
+                let focused = {
+                    let d = self.active_dashboard();
+                    d.focus.map(|(_, pane)| pane)
+                };
+                if let Some(pane) = focused {
+                    return self.update(Message::Dashboard {
+                        layout_id: None,
+                        event: dashboard::Message::Pane(
+                            main_window_id,
+                            dashboard::pane::Message::ClosePane(pane),
+                        ),
+                    });
+                }
+            }
+            Message::KeyMovePane(direction) => {
+                let swap_pair = {
+                    let d = self.active_dashboard();
+                    d.focus.and_then(|(_, pane)| {
+                        d.panes.adjacent(pane, direction).map(|adj| (pane, adj))
+                    })
+                };
+                if let Some((a, b)) = swap_pair {
+                    self.active_dashboard_mut().panes.swap(a, b);
+                }
+            }
+            Message::KeyToggleMaximize => {
+                let main_window_id = self.main_window.id;
+                let action = {
+                    let d = self.active_dashboard();
+                    if d.panes.maximized().is_some() {
+                        Some(dashboard::pane::Message::Restore)
+                    } else {
+                        d.focus.map(|(_, pane)| dashboard::pane::Message::MaximizePane(pane))
+                    }
+                };
+                if let Some(msg) = action {
+                    return self.update(Message::Dashboard {
+                        layout_id: None,
+                        event: dashboard::Message::Pane(main_window_id, msg),
+                    });
                 }
             }
             Message::ThemeSelected(theme) => {
@@ -770,11 +919,57 @@ impl Flowsurface {
         let tick = iced::window::frames().map(Message::Tick);
 
         let hotkeys = keyboard::listen().filter_map(|event| {
-            let keyboard::Event::KeyPressed { key, .. } = event else {
+            let keyboard::Event::KeyPressed { key, modifiers, .. } = event else {
                 return None;
             };
-            match key {
-                keyboard::Key::Named(keyboard::key::Named::Escape) => Some(Message::GoBack),
+            use keyboard::Key;
+            use keyboard::key::Named;
+
+            let ctrl = modifiers.control();
+            let shift = modifiers.shift();
+            let alt = modifiers.alt();
+
+            match (ctrl, shift, alt, &key) {
+                (false, false, false, Key::Named(Named::Escape)) => Some(Message::GoBack),
+
+                (true, false, false, Key::Named(Named::ArrowRight)) =>
+                    Some(Message::KeyFocusDirection(pane_grid::Direction::Right)),
+                (true, false, false, Key::Named(Named::ArrowLeft)) =>
+                    Some(Message::KeyFocusDirection(pane_grid::Direction::Left)),
+                (true, false, false, Key::Named(Named::ArrowUp)) =>
+                    Some(Message::KeyFocusDirection(pane_grid::Direction::Up)),
+                (true, false, false, Key::Named(Named::ArrowDown)) =>
+                    Some(Message::KeyFocusDirection(pane_grid::Direction::Down)),
+
+                (false, false, false, Key::Named(Named::Tab)) => Some(Message::KeyFocusNext),
+                (false, true, false, Key::Named(Named::Tab)) => Some(Message::KeyFocusPrev),
+
+                (true, false, false, Key::Character(c)) if c.as_str() == "1" => Some(Message::KeyFocusByIndex(0)),
+                (true, false, false, Key::Character(c)) if c.as_str() == "2" => Some(Message::KeyFocusByIndex(1)),
+                (true, false, false, Key::Character(c)) if c.as_str() == "3" => Some(Message::KeyFocusByIndex(2)),
+                (true, false, false, Key::Character(c)) if c.as_str() == "4" => Some(Message::KeyFocusByIndex(3)),
+                (true, false, false, Key::Character(c)) if c.as_str() == "5" => Some(Message::KeyFocusByIndex(4)),
+                (true, false, false, Key::Character(c)) if c.as_str() == "6" => Some(Message::KeyFocusByIndex(5)),
+
+                (true, true, false, Key::Named(Named::ArrowRight)) =>
+                    Some(Message::KeySplitPane(pane_grid::Axis::Vertical)),
+                (true, true, false, Key::Named(Named::ArrowDown)) =>
+                    Some(Message::KeySplitPane(pane_grid::Axis::Horizontal)),
+
+                (true, false, false, Key::Character(c)) if matches!(c.as_str(), "f" | "F") =>
+                    Some(Message::KeyToggleMaximize),
+                (true, false, false, Key::Character(c)) if matches!(c.as_str(), "w" | "W") =>
+                    Some(Message::KeyClosePane),
+
+                (false, true, false, Key::Named(Named::ArrowRight)) =>
+                    Some(Message::KeyMovePane(pane_grid::Direction::Right)),
+                (false, true, false, Key::Named(Named::ArrowLeft)) =>
+                    Some(Message::KeyMovePane(pane_grid::Direction::Left)),
+                (false, true, false, Key::Named(Named::ArrowUp)) =>
+                    Some(Message::KeyMovePane(pane_grid::Direction::Up)),
+                (false, true, false, Key::Named(Named::ArrowDown)) =>
+                    Some(Message::KeyMovePane(pane_grid::Direction::Down)),
+
                 _ => None,
             }
         });
