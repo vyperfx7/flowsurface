@@ -124,6 +124,8 @@ enum Message {
     KeyClosePane,
     KeyToggleMaximize,
     KeyMovePane(pane_grid::Direction),
+    KeyLayoutNext,
+    KeyLayoutPrev,
 }
 
 impl Flowsurface {
@@ -467,6 +469,22 @@ impl Flowsurface {
                         event: dashboard::Message::Pane(main_window_id, msg),
                     });
                 }
+            }
+            Message::KeyLayoutNext => {
+                let n = self.layout_manager.layouts.len();
+                if n <= 1 { return Task::none(); }
+                let current = self.layout_manager.active_layout_id().map(|l| l.unique);
+                let idx = self.layout_manager.layouts.iter().position(|l| Some(l.id.unique) == current).unwrap_or(0);
+                let next = self.layout_manager.layouts[(idx + 1) % n].id.unique;
+                return self.update(Message::Layouts(modal::layout_manager::Message::SelectActive(next)));
+            }
+            Message::KeyLayoutPrev => {
+                let n = self.layout_manager.layouts.len();
+                if n <= 1 { return Task::none(); }
+                let current = self.layout_manager.active_layout_id().map(|l| l.unique);
+                let idx = self.layout_manager.layouts.iter().position(|l| Some(l.id.unique) == current).unwrap_or(0);
+                let prev = self.layout_manager.layouts[(idx + n - 1) % n].id.unique;
+                return self.update(Message::Layouts(modal::layout_manager::Message::SelectActive(prev)));
             }
             Message::ThemeSelected(theme) => {
                 self.theme = data::Theme(theme.clone());
@@ -969,6 +987,11 @@ impl Flowsurface {
                     Some(Message::KeyMovePane(pane_grid::Direction::Up)),
                 (false, false, true, Key::Named(Named::ArrowDown)) =>
                     Some(Message::KeyMovePane(pane_grid::Direction::Down)),
+
+                (true, true, false, Key::Character(c)) if matches!(c.as_str(), "l" | "L") =>
+                    Some(Message::KeyLayoutNext),
+                (true, true, false, Key::Character(c)) if matches!(c.as_str(), "h" | "H") =>
+                    Some(Message::KeyLayoutPrev),
 
                 _ => None,
             }
